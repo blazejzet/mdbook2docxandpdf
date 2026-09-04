@@ -228,7 +228,7 @@ enum EpubBuilder {
         }
         toc += "</ol>\n</nav>\n"
 
-        var landmarks = "<nav epub:type=\"landmarks\" id=\"landmarks\" hidden=\"\">\n<ol>\n"
+        var landmarks = "<nav epub:type=\"landmarks\" id=\"landmarks\" class=\"landmarks\" hidden=\"\">\n<ol>\n"
         if cover != nil {
             landmarks += "<li><a epub:type=\"cover\" href=\"text/cover.xhtml\">\(XHTML.escape(bookInfo.title))</a></li>\n"
         }
@@ -325,10 +325,19 @@ enum EpubBuilder {
             // property (EPUB3) is the modern way to say the same thing.
             meta += "<meta name=\"cover\" content=\"cover-image\"/>\n"
         }
-        meta += "<dc:title>\(XHTML.escape(bookInfo.title))</dc:title>\n"
+        // The "main" refinement is what tells a reading system which of several
+        // dc:title elements is the book's actual title. EPUB3 makes it optional
+        // and epubcheck stays silent without it, but Amazon's converter hard
+        // fails on a package carrying a subtitle and no main title
+        // (E20006 -> E21011 "The book title was not set"), which surfaces on
+        // KDP as a generic "we couldn't convert your file".
+        meta += "<dc:title id=\"main-title\">\(XHTML.escape(bookInfo.title))</dc:title>\n"
+        meta += "<meta refines=\"#main-title\" property=\"title-type\">main</meta>\n"
+        meta += "<meta refines=\"#main-title\" property=\"display-seq\">1</meta>\n"
         if let subtitle = bookInfo.subtitle {
             meta += "<dc:title id=\"subtitle\">\(XHTML.escape(subtitle))</dc:title>\n"
             meta += "<meta refines=\"#subtitle\" property=\"title-type\">subtitle</meta>\n"
+            meta += "<meta refines=\"#subtitle\" property=\"display-seq\">2</meta>\n"
         }
         meta += "<dc:creator id=\"creator\">\(XHTML.escape(bookInfo.author))</dc:creator>\n"
         meta += "<meta refines=\"#creator\" property=\"role\" scheme=\"marc:relators\">aut</meta>\n"
@@ -351,7 +360,7 @@ enum EpubBuilder {
         return """
         <?xml version="1.0" encoding="UTF-8"?>
         <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id" xml:lang="\(lang)">
-        <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+        <metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">
         \(meta)
         </metadata>
         <manifest>
@@ -370,8 +379,6 @@ enum EpubBuilder {
     // MARK: - Stylesheet
 
     private static let stylesheet = """
-    @namespace epub "http://www.idpf.org/2007/ops";
-
     body {
       font-family: Georgia, "Times New Roman", serif;
       line-height: 1.5;
@@ -477,7 +484,7 @@ enum EpubBuilder {
       margin: 0.4em 0;
     }
 
-    nav[epub|type~="landmarks"] {
+    nav.landmarks {
       display: none;
     }
     """

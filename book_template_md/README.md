@@ -34,6 +34,11 @@ allowed:
 - `ISBN` — optional. It may carry text after the number (e.g.
   `9780000000000 | Independently published`) — both tools extract just the
   digits (and a possible trailing "X") wherever that is what's needed.
+- `LANGUAGE` — optional but strongly recommended: a BCP 47 code (`en`,
+  `pl`, `de`). It becomes the epub's `dc:language` and the `lang` attribute
+  on every page. Without it the build warns and falls back to `pl`, which
+  silently mislabels a book in any other language. `--lang` overrides it for
+  a one-off build; the field is what survives a rebuild.
 - `PRINTING DATE` (or `PRINTING_DATE`) — optional; a 4-digit year found in
   this field becomes the copyright year in the metadata. Without the field,
   the current year is used.

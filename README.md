@@ -53,9 +53,9 @@ file name (file names only establish chapter order). The same pair of tools
 therefore builds a book in any language.
 
 Both tools read the same `--book` directory layout:
-- `00 - Bookinfo.md` — metadata (`TITLE`, `AUTHOR`, optionally `SUBTITLE`,
-  `ISBN`, `PRINTING DATE`), and below a `---` line the finished text of the
-  copyright page, printed verbatim.
+- `00 - Bookinfo.md` — metadata (`TITLE`, `AUTHOR`, `LANGUAGE`, optionally
+  `SUBTITLE`, `ISBN`, `PRINTING DATE`), and below a `---` line the finished
+  text of the copyright page, printed verbatim.
 - `00 - Content.md` — the table of contents; the file name is fixed.
   `## Heading` (required, once) is the title of the contents page in the
   book's own language, `### Act` opens a division, and the
@@ -121,7 +121,9 @@ md2epub [options]
                         (default: 00 - Content.md)
   --bookinfo <file>    Metadata file name inside --book
                         (default: 00 - Bookinfo.md)
-  --lang <code>        EPUB language code, e.g. pl, en (default: pl)
+  --lang <code>        EPUB language code, e.g. pl, en. Overrides the
+                        LANGUAGE: field in bookinfo.md; without either,
+                        defaults to pl and warns
   --cover <file>       Cover (.jpg/.jpeg/.png/.gif/.svg). Defaults to
                         <book>/cover.jpg — if absent, the epub is built
                         without one. Downscaled if larger than
@@ -133,8 +135,18 @@ md2epub [options]
                         (default: "<Title>.epub" from bookinfo.md)
 ```
 
-The generated file has been verified with
-[`epubcheck`](https://github.com/w3c/epubcheck) (`brew install epubcheck`).
+The generated file is verified against two independent checkers:
+[`epubcheck`](https://github.com/w3c/epubcheck) (`brew install epubcheck`)
+for EPUB conformance, and the `kindlegen` binary inside
+[Kindle Previewer 3](https://kdp.amazon.com/en_US/help/topic/G202131170)
+(`brew install --cask kindle-previewer`) for the conversion Amazon KDP
+actually runs on upload. The two disagree: KDP rejects packages epubcheck
+passes, so a clean epubcheck run alone does not mean a book will upload.
+
+```sh
+epubcheck "My Book.epub"
+"/Applications/Kindle Previewer 3.app/Contents/lib/fc/bin/kindlegen" "My Book.epub" -o out.mobi
+```
 
 ## Requirements
 

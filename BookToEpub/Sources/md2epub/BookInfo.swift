@@ -10,6 +10,10 @@ struct BookInfo {
     var author: String
     var isbn: String?
     var printingDate: String?
+    /// `LANGUAGE:` — a BCP 47 code ("en", "pl", "de"). Belongs in the book's
+    /// own metadata rather than in a command-line flag that is easy to drop
+    /// on a rebuild: a book's language is a property of the book.
+    var language: String?
     /// The copyright / imprint page, written out by the author below a `---`
     /// line in the metadata file: one entry per source line, an empty entry
     /// being a blank spacer line. It is reproduced verbatim (inline
@@ -55,8 +59,23 @@ struct BookInfo {
             author: author,
             isbn: fields["ISBN"],
             printingDate: fields["PRINTING DATE"] ?? fields["PRINTING_DATE"],
+            language: fields["LANGUAGE"],
             copyrightPage: pageLines
         )
+    }
+
+    /// The title reduced to something safe to use as a file name. Colons and
+    /// path separators are the ones that matter: macOS still treats ":" as a
+    /// legacy separator, and upload pipelines that key off the file name
+    /// (KDP's among them) mangle or misidentify files carrying them.
+    /// "A: B" becomes "A - B"; a title with none of these is untouched.
+    var fileNameSafeTitle: String {
+        let illegal = CharacterSet(charactersIn: "/:\\?%*|\"<>")
+        let parts = title
+            .components(separatedBy: illegal)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        return parts.isEmpty ? title : parts.joined(separator: " - ")
     }
 
     /// Best-effort 4-digit year extracted from the printing date, for the copyright notice.

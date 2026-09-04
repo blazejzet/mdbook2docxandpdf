@@ -17,7 +17,10 @@ enum ZipTool {
         // mimetype first, stored (no compression, level 0).
         try run("/usr/bin/zip", ["-X0q", archive.path, "mimetype"], currentDirectory: sourceDir)
         // Everything else, deflated, appended to the archive just created.
-        try run("/usr/bin/zip", ["-rX9q", archive.path, "META-INF", "OEBPS"], currentDirectory: sourceDir)
+        // -D omits directory entries: they are pure noise in an .epub (every
+        // path is stored in full) and Amazon's Kindle converter is known to
+        // trip over them where epubcheck waves them through.
+        try run("/usr/bin/zip", ["-rDX9q", archive.path, "META-INF", "OEBPS"], currentDirectory: sourceDir)
     }
 
     private static func run(_ launchPath: String, _ arguments: [String], currentDirectory: URL? = nil) throws {

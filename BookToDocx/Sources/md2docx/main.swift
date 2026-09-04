@@ -177,7 +177,7 @@ do {
     try write(PartsBuilder.documentRels(), to: wordRelsDir.appendingPathComponent("document.xml.rels"))
     try write(PartsBuilder.packageRels(), to: relsDir.appendingPathComponent(".rels"))
 
-    let outputURL = opts.output ?? URL(fileURLWithPath: "\(bookInfo.title).docx")
+    let outputURL = opts.output ?? URL(fileURLWithPath: "\(bookInfo.fileNameSafeTitle).docx")
     print("Zipping \(outputURL.lastPathComponent)...")
     try ZipTool.create(from: stagingDir, archive: outputURL)
 

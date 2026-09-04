@@ -9,7 +9,7 @@ struct CLIOptions {
     var bookDir = URL(fileURLWithPath: "book")
     var tocFileName = "00 - Content.md"
     var bookInfoFileName = "00 - Bookinfo.md"
-    var lang = "pl"
+    var lang: String?
     var coverPath: URL?
     var coverMaxDimension = CoverProcessor.defaultMaxDimension
     var output: URL?
@@ -48,7 +48,9 @@ struct CLIOptions {
                   --book <dir>        Directory with chapter .md files (default: book)
                   --toc <file>        Contents markdown filename inside --book (default: 00 - Content.md)
                   --bookinfo <file>   Book metadata markdown filename inside --book (default: 00 - Bookinfo.md)
-                  --lang <code>       EPUB language code, e.g. pl, en (default: pl)
+                  --lang <code>       EPUB language code, e.g. pl, en. Overrides the
+                                      LANGUAGE: field in bookinfo.md; without either,
+                                      defaults to pl and warns.
                   --cover <file>      Cover image (.jpg/.jpeg/.png/.gif/.svg). Downscaled to fit
                                       --cover-max-dimension if larger (source is often a print-
                                       resolution export); never upscaled. Default: <book>/cover.jpg,
@@ -82,6 +84,20 @@ do {
 
     print("Reading \(opts.bookInfoFileName)...")
     let bookInfo = try BookInfo.parse(fileURL: bookInfoURL)
+
+    // The book's own LANGUAGE: field is the source of truth; --lang overrides
+    // it for one-off builds. A silent default would quietly ship an English
+    // book declaring Polish, which readers and shops both act on.
+    let lang: String
+    if let flag = opts.lang {
+        lang = flag
+    } else if let declared = bookInfo.language {
+        lang = declared
+    } else {
+        lang = "pl"
+        print("warning: no LANGUAGE: field in \(opts.bookInfoFileName) and no --lang given; declaring '\(lang)'.")
+    }
+    print("Language: \(lang)")
 
     print("Reading \(opts.tocFileName)...")
     let contents = try TableOfContents.parse(fileURL: tocURL)
@@ -120,7 +136,7 @@ do {
     }
 
     print("Building EPUB parts...")
-    let files = try EpubBuilder.build(bookInfo: bookInfo, contents: contents, chapters: chapters, lang: opts.lang, cover: cover)
+    let files = try EpubBuilder.build(bookInfo: bookInfo, contents: contents, chapters: chapters, lang: lang, cover: cover)
 
     let workDir = fm.temporaryDirectory.appendingPathComponent("md2epub-\(UUID().uuidString)")
     try fm.createDirectory(at: workDir, withIntermediateDirectories: true)
@@ -141,7 +157,7 @@ do {
         }
     }
 
-    let outputURL = opts.output ?? URL(fileURLWithPath: "\(bookInfo.title).epub")
+    let outputURL = opts.output ?? URL(fileURLWithPath: "\(bookInfo.fileNameSafeTitle).epub")
     print("Zipping \(outputURL.lastPathComponent)...")
     try ZipTool.createEpub(from: workDir, archive: outputURL)
 
