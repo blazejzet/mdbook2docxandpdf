@@ -1,0 +1,31 @@
+# macOS
+.DS_Store
+._*
+.AppleDouble
+.LSOverride
+.Spotlight-V100
+.Trashes
+
+# Swift Package Manager — build products (~450 MB across both packages)
+.build/
+.swiftpm/
+
+# Xcode, when opening either Package.swift directly
+DerivedData/
+xcuserdata/
+*.xcuserstate
+
+# Books built into the repo root by md2docx / md2epub. The .docx page
+# templates under BookToDocx/templates/ are source and stay tracked, so
+# these rules are anchored to the root with a leading slash.
+/*.docx
+/*.epub
+
+# Word / LibreOffice lock files, e.g. left behind while a template is open
+~$*
+.~lock.*#
+
+# Editors
+.vscode/
+.idea/
+*.swp
