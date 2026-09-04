@@ -29,3 +29,5 @@ xcuserdata/
 .vscode/
 .idea/
 *.swp
+BookToEpub/.build
+BookToDocx/.build
