@@ -1,0 +1,5 @@
+# This package is deliberately standalone — keep it ignorable on its own,
+# not only via the repository-root .gitignore.
+.build/
+.swiftpm/
+.DS_Store
