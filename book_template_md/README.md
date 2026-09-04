@@ -4,6 +4,12 @@ Wzorcowy, w pełni działający katalog źródłowy dla `md2docx` i `md2epub`
 (patrz `../BookToDocx`, `../BookToEpub`). Skopiuj ten katalog, podmień
 zawartość i zbuduj — poniżej opis każdej reguły formatu.
 
+Zasada nadrzędna obu narzędzi: **wszystko, co czytelnik zobaczy w książce,
+pochodzi z plików `.md`**. Żaden tekst nie jest zaszyty w kodzie ani
+zgadywany z nazwy pliku — nazwy plików służą wyłącznie do ustalenia
+kolejności rozdziałów. Dzięki temu ta sama para narzędzi buduje książkę w
+dowolnym języku.
+
 Ten plik (`README.md`) jest ignorowany przez oba narzędzia — nie ma w nazwie
 wzorca `NN - ...`, więc nigdy nie trafia do spisu rozdziałów.
 
@@ -18,9 +24,10 @@ md2epub --book book_template_md -o /tmp/przyklad.epub
 domyślny szablon `.docx` sam znajdzie się w `~/.bookapps/templates/docx/` —
 nie trzeba podawać `--template`.)
 
-## 1. `00 - Bookinfo.md` — metadane
+## 1. `00 - Bookinfo.md` — metadane i strona redakcyjna
 
-Proste linie `KLUCZ: wartość`, w dowolnej kolejności, puste linie dozwolone:
+Górna część pliku to proste linie `KLUCZ: wartość`, w dowolnej kolejności,
+puste linie dozwolone:
 
 - `TITLE` — **wymagane**.
 - `AUTHOR` — **wymagane**.
@@ -29,44 +36,83 @@ Proste linie `KLUCZ: wartość`, w dowolnej kolejności, puste linie dozwolone:
   `9780000000000 | Independently published`) — oba narzędzia same wyciągają
   z tego same cyfry (i ewentualne końcowe „X”) tam, gdzie to potrzebne.
 - `PRINTING DATE` (albo `PRINTING_DATE`) — opcjonalne; sam 4-cyfrowy rok w
-  tym polu trafia na stronę redakcyjną jako rok praw autorskich. Bez tego
-  pola użyty zostanie bieżący rok.
+  tym polu trafia do metadanych jako rok praw autorskich. Bez tego pola
+  użyty zostanie bieżący rok.
 
-## 2. `00 - Spis treści.md` — spis treści
+Poniżej linii `---` piszesz **treść strony redakcyjnej — dokładnie tak, jak
+ma się wydrukować**: jedna linia to jeden wyśrodkowany akapit, pusta linia
+to odstęp, działa `**pogrubienie**` / `*kursywa*`. Nic tu nie jest
+dopisywane przez narzędzie, więc formuły w rodzaju „Wszelkie prawa
+zastrzeżone.” czy „Wydanie pierwsze:” są w Twoim języku i Twoim brzmieniu:
 
+```
+PRINTING DATE: 01.2027
+
+---
+
+Sample Title
+First Last
+
+Copyright © 2027 First Last
+All rights reserved.
+
+ISBN 9780000000000
+
+First printing: 01.2027
+```
+
+Blok po `---` jest opcjonalny. Jeśli go pominiesz, strona redakcyjna
+zawiera tylko dane językowo neutralne: tytuł, autora, `© rok autor` oraz
+`ISBN <numer>`.
+
+## 2. `00 - Content.md` — spis treści
+
+Nazwa tego pliku jest stała: **zawsze `00 - Content.md`** (można ją zmienić
+przez `--toc`, ale nie ma po temu powodu).
+
+- `## Nagłówek` — **wymagane, dokładnie raz**. To tytuł strony spisu treści
+  w języku książki („Spis treści”, „Table of Contents”, …). Trafia na
+  stronę spisu w `.docx` i na `nav.xhtml` w `.epub`. Nie jest brany ani z
+  nazwy pliku, ani z kodu narzędzia.
 - `### Nazwa aktu` otwiera nowy „akt” (dział książki). Musi wystąpić co
   najmniej raz przed pierwszym wierszem tabeli.
 - Wiersze tabeli markdown `| Nr | Tytuł | Kod |` rejestrują rozdziały w
-  aktualnie otwartym akcie. Kolumna „Kod” jest czysto opisowa — nie jest
-  nigdzie interpretowana, możesz w niej trzymać własny system oznaczeń.
-- **To ten plik, nie plik rozdziału, jest źródłem prawdy dla tytułu
-  rozdziału** — pierwszy nagłówek `#` w pliku rozdziału służy tylko do
-  sprawdzenia poprawności pliku i nigdy nie trafia do wyniku.
-- Tytuł zawierający em dash otoczony spacjami (`Tytuł — Podtytuł`) tworzy
-  dwuczęściowy nagłówek: górna linia to `Tytuł`, dolna (mniejsza,
-  wyśrodkowana) to `Podtytuł`. W tym przykładzie użyte dla rozdziału
-  „ACCOUNT I — A Voice from Memory”.
+  aktualnie otwartym akcie. Kolumna „Nr” wiąże wiersz z plikiem rozdziału,
+  kolumna „Kod” jest czysto opisowa — nie jest nigdzie interpretowana,
+  możesz w niej trzymać własny system oznaczeń.
+- **Kolumna „Tytuł” jest etykietą rozdziału w spisie treści i tylko tam.**
+  Nagłówek drukowany na stronie rozdziału bierze się z samego pliku
+  rozdziału (patrz niżej), więc w spisie możesz mieć dłuższy opis niż w
+  treści — jak tutaj „ACCOUNT I — A Voice from Memory” dla rozdziału,
+  którego strona zaczyna się od „ACCOUNT I”.
+- Wiodąca linia `# ` (tytuł książki) jest ignorowana — źródłem prawdy dla
+  metadanych jest `00 - Bookinfo.md`.
 
 ## 3. Pliki rozdziałów — `NN - Kod - Tytuł.md`
 
 Nazwa pliku musi zaczynać się od liczby i `" - "` (spacja-myślnik-spacja);
 ta liczba musi zgadzać się z kolumną „Nr” w spisie treści — reszta nazwy
-pliku jest dowolna i tylko dla wygody czytania w Finderze.
+pliku jest dowolna i tylko dla wygody czytania w Finderze. **Z nazwy pliku
+nigdy nie powstaje żaden nagłówek w treści.**
 
 Zasady treści pliku:
 
-- **Pierwsza niepusta linia musi być `# Tytuł`.** Jak wyżej — to tylko
-  kontrola poprawności pliku, sam tekst nigdy nie trafia do wyniku (o
-  prawdziwym tytule decyduje spis treści).
+- **Pierwsza niepusta linia musi być `# Tytuł`** — i to ona jest nagłówkiem
+  rozdziału w gotowej książce.
+- `## Podtytuł` **bezpośrednio pod** nagłówkiem rozdziału daje
+  dwuczęściowy nagłówek: górna linia to `#`, dolna (mniejsza, kursywą,
+  wyśrodkowana) to `##`. Tak zrobiony jest rozdział
+  `03 - R1 - A Voice from Memory.md`.
+- `## Śródtytuł` w dalszej części rozdziału tworzy zwykły wyśrodkowany
+  podnagłówek.
 - Akapity oddziela pusta linia. **W obrębie jednego akapitu możesz łamać
   wiersze dowolnie** (miękkie zawijanie) — sąsiednie linie bez pustej linii
   między nimi zostaną złączone jedną spacją w jeden akapit (patrz
   `02 - U2 - The Silence of the House.md`, pierwszy akapit).
-- `## Śródtytuł` w środku rozdziału tworzy wyśrodkowany podnagłówek.
 - Linia zawierająca dokładnie `***` **albo** `✦` (i nic więcej) to przerwa
   sceniczna — w wyniku wyśrodkowany `✦` z dodatkowym odstępem nad i pod.
   Oba zapisy są równoważne, użyj tego, który wygodniej się pisze.
-- **Pogrubienie i kursywa** działają wewnątrz akapitów i śródtytułów:
+- **Pogrubienie i kursywa** działają wewnątrz akapitów i nagłówków:
   `**pogrubienie**`, `*kursywa*`, `***pogrubienie i kursywa razem***`
   (`_podkreślnik_` / `__podwójny__` też działają, ale konsekwentnie trzymaj
   się jednego zapisu w całej książce).

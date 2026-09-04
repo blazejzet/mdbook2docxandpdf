@@ -20,30 +20,6 @@ private struct ActGroup {
     let chapters: [ChapterRef]
 }
 
-private struct L10n {
-    let tocHeading: String
-    let titlePageLabel: String
-    let startReading: String
-    let copyrightPageTitle: String
-
-    static func forLanguage(_ lang: String) -> L10n {
-        if lang.lowercased().hasPrefix("pl") {
-            return L10n(
-                tocHeading: "Spis treści",
-                titlePageLabel: "Strona tytułowa",
-                startReading: "Początek książki",
-                copyrightPageTitle: "Strona redakcyjna"
-            )
-        }
-        return L10n(
-            tocHeading: "Contents",
-            titlePageLabel: "Title Page",
-            startReading: "Start of Content",
-            copyrightPageTitle: "Copyright"
-        )
-    }
-}
-
 enum EpubBuilder {
 
     /// Builds every *text* file an EPUB3 package needs, keyed by its path
@@ -51,8 +27,13 @@ enum EpubBuilder {
     /// "OEBPS/text/ch-001.xhtml"). The caller writes each entry to disk,
     /// separately copies the cover image's actual bytes to `cover.href`
     /// (this map is text-only), and zips the result.
-    static func build(bookInfo: BookInfo, acts: [Act], chapters: [Int: ChapterFile], lang: String, cover: CoverImage?) throws -> [String: String] {
-        let t = L10n.forLanguage(lang)
+    ///
+    /// Every word a reader sees comes from the book's markdown: chapter
+    /// headings from the chapter files, act names and the contents page's
+    /// heading from `00 - Content.md`, the copyright page and title from
+    /// `00 - Bookinfo.md`. Labels this builder has to emit for structural
+    /// navigation reuse those same strings rather than English defaults.
+    static func build(bookInfo: BookInfo, contents: BookContents, chapters: [Int: ChapterFile], lang: String, cover: CoverImage?) throws -> [String: String] {
         let identifier = Identifier.forBook(bookInfo)
 
         var files: [String: String] = [:]
@@ -84,7 +65,7 @@ enum EpubBuilder {
         manifest.append(ManifestItem(id: "titlepage", href: "text/titlepage.xhtml", mediaType: "application/xhtml+xml"))
         spineIDs.append("titlepage")
 
-        files["OEBPS/text/copyright.xhtml"] = copyrightXHTML(bookInfo: bookInfo, lang: lang, t: t)
+        files["OEBPS/text/copyright.xhtml"] = copyrightXHTML(bookInfo: bookInfo, lang: lang)
         manifest.append(ManifestItem(id: "copyright", href: "text/copyright.xhtml", mediaType: "application/xhtml+xml"))
         spineIDs.append("copyright")
 
@@ -93,7 +74,7 @@ enum EpubBuilder {
         spineIDs.append("nav")
 
         var actGroups: [ActGroup] = []
-        for (actIndex, act) in acts.enumerated() {
+        for (actIndex, act) in contents.acts.enumerated() {
             let actID = "act\(actIndex + 1)"
             let actHref = "text/act-\(actIndex + 1).xhtml"
             files["OEBPS/\(actHref)"] = actDividerXHTML(act: act, lang: lang)
@@ -116,10 +97,10 @@ enum EpubBuilder {
             actGroups.append(ActGroup(act: act, actID: actID, actHref: actHref, chapters: refs))
         }
 
-        files["OEBPS/nav.xhtml"] = navXHTML(bookInfo: bookInfo, acts: actGroups, lang: lang, t: t, cover: cover)
+        files["OEBPS/nav.xhtml"] = navXHTML(bookInfo: bookInfo, heading: contents.heading, acts: actGroups, lang: lang, cover: cover)
 
         manifest.append(ManifestItem(id: "ncx", href: "toc.ncx", mediaType: "application/x-dtbncx+xml"))
-        files["OEBPS/toc.ncx"] = tocNCX(bookInfo: bookInfo, acts: actGroups, lang: lang, t: t, identifier: identifier)
+        files["OEBPS/toc.ncx"] = tocNCX(bookInfo: bookInfo, heading: contents.heading, acts: actGroups, lang: lang, identifier: identifier)
 
         files["OEBPS/content.opf"] = contentOPF(
             bookInfo: bookInfo,
@@ -127,8 +108,8 @@ enum EpubBuilder {
             identifier: identifier,
             manifest: manifest,
             spineIDs: spineIDs,
-            firstContentHref: actGroups.first?.actHref ?? "text/titlepage.xhtml",
-            t: t,
+            heading: contents.heading,
+            firstAct: actGroups.first,
             cover: cover
         )
 
@@ -177,22 +158,20 @@ enum EpubBuilder {
         return page(title: bookInfo.title, lang: lang, bodyXML: body)
     }
 
-    private static func copyrightXHTML(bookInfo: BookInfo, lang: String, t: L10n) -> String {
+    /// The copyright page is whatever `00 - Bookinfo.md` says it is — one
+    /// paragraph per source line, blank lines kept as spacers — so its
+    /// wording is the author's, in the book's language.
+    private static func copyrightXHTML(bookInfo: BookInfo, lang: String) -> String {
         var body = "<section class=\"copyright\" epub:type=\"copyright-page\">\n"
-        body += "<p>\(XHTML.escape(bookInfo.title))</p>\n"
-        body += "<p>\(XHTML.escape(bookInfo.author))</p>\n"
-        body += "<p class=\"spacer\">&#160;</p>\n"
-        body += "<p>Copyright © \(bookInfo.copyrightYear) \(XHTML.escape(bookInfo.author))</p>\n"
-        body += "<p>All rights reserved.</p>\n"
-        body += "<p class=\"spacer\">&#160;</p>\n"
-        if let isbn = bookInfo.isbnDigits {
-            body += "<p>ISBN: \(XHTML.escape(isbn))</p>\n"
-        }
-        if let printingDate = bookInfo.printingDate {
-            body += "<p>First printing: \(XHTML.escape(printingDate))</p>\n"
+        for line in bookInfo.copyrightPageLines(isbn: bookInfo.isbnDigits) {
+            if line.isEmpty {
+                body += "<p class=\"spacer\">&#160;</p>\n"
+            } else {
+                body += "<p>\(XHTML.render(InlineMarkdown.parse(line)))</p>\n"
+            }
         }
         body += "</section>"
-        return page(title: t.copyrightPageTitle, lang: lang, bodyXML: body)
+        return page(title: bookInfo.title, lang: lang, bodyXML: body)
     }
 
     private static func actDividerXHTML(act: Act, lang: String) -> String {
@@ -200,39 +179,46 @@ enum EpubBuilder {
         return page(title: act.name, lang: lang, bodyXML: body)
     }
 
-    /// One chapter's page: the TOC-derived heading (not the markdown file's
-    /// own `# H1`, which only exists to sanity-check the source file — same
-    /// convention as md2docx's DocumentBuilder), then its body blocks.
+    /// One chapter's page: exactly the blocks its markdown file contains, in
+    /// file order. The heading printed here is the file's own `# ` line —
+    /// never the file name, and never the title from the contents file
+    /// (which labels the chapter in the TOC only).
     private static func chapterXHTML(entry: TOCEntry, chapter: ChapterFile, lang: String) -> String {
         var body = "<section class=\"chapter\" epub:type=\"chapter\" id=\"ch\(entry.nr)\">\n"
-        body += "<h1>\(XHTML.escape(entry.headingMain))</h1>\n"
-        if let sub = entry.headingSub {
-            body += "<p class=\"chapter-subtitle\">\(XHTML.escape(sub))</p>\n"
-        }
-
         var nextIsOpening = true
-        for block in chapter.blocks {
+
+        for (index, block) in chapter.blocks.enumerated() {
             switch block {
+            case .title(let runs):
+                body += "<h1>\(XHTML.render(runs))</h1>\n"
+                nextIsOpening = true
+            case .subhead(let runs):
+                // A subhead sitting directly under the chapter's opening
+                // heading reads as its subtitle rather than a mid-chapter break.
+                let isSubtitle = index == 1 && chapter.blocks.first?.isTitle == true
+                let cls = isSubtitle ? "chapter-subtitle" : "subhead"
+                body += "<h2 class=\"\(cls)\">\(XHTML.render(runs))</h2>\n"
+                nextIsOpening = true
             case .paragraph(let runs):
                 let cls = nextIsOpening ? " class=\"opening\"" : ""
                 body += "<p\(cls)>\(XHTML.render(runs))</p>\n"
                 nextIsOpening = false
-            case .subhead(let runs):
-                body += "<h2 class=\"subhead\">\(XHTML.render(runs))</h2>\n"
-                nextIsOpening = true
             case .sceneBreak:
                 body += "<p class=\"scene-break\" role=\"separator\">✦</p>\n"
                 nextIsOpening = true
             }
         }
         body += "</section>"
-        return page(title: entry.headingMain, lang: lang, bodyXML: body)
+        return page(title: chapter.openingHeading ?? entry.title, lang: lang, bodyXML: body)
     }
 
     // MARK: - Navigation
 
-    private static func navXHTML(bookInfo: BookInfo, acts: [ActGroup], lang: String, t: L10n, cover: CoverImage?) -> String {
-        var toc = "<nav epub:type=\"toc\" id=\"toc\">\n<h1>\(XHTML.escape(t.tocHeading))</h1>\n<ol>\n"
+    /// Landmark labels are the book's own strings (its title, its contents
+    /// heading, its first act's name); `epub:type` is what actually tells a
+    /// reading system what each one is.
+    private static func navXHTML(bookInfo: BookInfo, heading: String, acts: [ActGroup], lang: String, cover: CoverImage?) -> String {
+        var toc = "<nav epub:type=\"toc\" id=\"toc\">\n<h1>\(XHTML.escape(heading))</h1>\n<ol>\n"
         for group in acts {
             toc += "<li><a href=\"\(group.actHref)\">\(XHTML.escape(group.act.name))</a>\n<ol>\n"
             for ref in group.chapters {
@@ -244,19 +230,19 @@ enum EpubBuilder {
 
         var landmarks = "<nav epub:type=\"landmarks\" id=\"landmarks\" hidden=\"\">\n<ol>\n"
         if cover != nil {
-            landmarks += "<li><a epub:type=\"cover\" href=\"text/cover.xhtml\">Cover</a></li>\n"
+            landmarks += "<li><a epub:type=\"cover\" href=\"text/cover.xhtml\">\(XHTML.escape(bookInfo.title))</a></li>\n"
         }
-        landmarks += "<li><a epub:type=\"titlepage\" href=\"text/titlepage.xhtml\">\(XHTML.escape(t.titlePageLabel))</a></li>\n"
-        landmarks += "<li><a epub:type=\"toc\" href=\"nav.xhtml\">\(XHTML.escape(t.tocHeading))</a></li>\n"
+        landmarks += "<li><a epub:type=\"titlepage\" href=\"text/titlepage.xhtml\">\(XHTML.escape(bookInfo.title))</a></li>\n"
+        landmarks += "<li><a epub:type=\"toc\" href=\"nav.xhtml\">\(XHTML.escape(heading))</a></li>\n"
         if let firstAct = acts.first {
-            landmarks += "<li><a epub:type=\"bodymatter\" href=\"\(firstAct.actHref)\">\(XHTML.escape(t.startReading))</a></li>\n"
+            landmarks += "<li><a epub:type=\"bodymatter\" href=\"\(firstAct.actHref)\">\(XHTML.escape(firstAct.act.name))</a></li>\n"
         }
         landmarks += "</ol>\n</nav>"
 
-        return page(title: t.tocHeading, lang: lang, cssHref: "css/stylesheet.css", bodyXML: toc + landmarks)
+        return page(title: heading, lang: lang, cssHref: "css/stylesheet.css", bodyXML: toc + landmarks)
     }
 
-    private static func tocNCX(bookInfo: BookInfo, acts: [ActGroup], lang: String, t: L10n, identifier: String) -> String {
+    private static func tocNCX(bookInfo: BookInfo, heading: String, acts: [ActGroup], lang: String, identifier: String) -> String {
         var playOrder = 0
         func nextOrder() -> Int { playOrder += 1; return playOrder }
 
@@ -271,8 +257,7 @@ enum EpubBuilder {
 
         var navPoints = ""
         navPoints += navPoint(id: "titlepage", order: nextOrder(), label: bookInfo.title, href: "text/titlepage.xhtml")
-        navPoints += navPoint(id: "copyright", order: nextOrder(), label: t.copyrightPageTitle, href: "text/copyright.xhtml")
-        navPoints += navPoint(id: "navtoc", order: nextOrder(), label: t.tocHeading, href: "nav.xhtml")
+        navPoints += navPoint(id: "navtoc", order: nextOrder(), label: heading, href: "nav.xhtml")
 
         for group in acts {
             let actOrder = nextOrder()
@@ -315,8 +300,8 @@ enum EpubBuilder {
         identifier: String,
         manifest: [ManifestItem],
         spineIDs: [String],
-        firstContentHref: String,
-        t: L10n,
+        heading: String,
+        firstAct: ActGroup?,
         cover: CoverImage?
     ) -> String {
         let now = ISO8601DateFormatter().string(from: Date())
@@ -348,8 +333,20 @@ enum EpubBuilder {
         meta += "<dc:creator id=\"creator\">\(XHTML.escape(bookInfo.author))</dc:creator>\n"
         meta += "<meta refines=\"#creator\" property=\"role\" scheme=\"marc:relators\">aut</meta>\n"
         meta += "<dc:language>\(lang)</dc:language>\n"
-        meta += "<dc:rights>Copyright © \(bookInfo.copyrightYear) \(XHTML.escape(bookInfo.author)). All rights reserved.</dc:rights>\n"
+        // Symbol, year and name only: the wording of a rights statement is the
+        // author's, and lives on the copyright page in bookinfo.md.
+        meta += "<dc:rights>© \(bookInfo.copyrightYear) \(XHTML.escape(bookInfo.author))</dc:rights>\n"
         meta += "<meta property=\"dcterms:modified\">\(now)</meta>\n"
+
+        var guideXML = ""
+        if cover != nil {
+            guideXML += "<reference type=\"cover\" title=\"\(XHTML.escape(bookInfo.title))\" href=\"text/cover.xhtml\"/>\n"
+        }
+        guideXML += "<reference type=\"toc\" title=\"\(XHTML.escape(heading))\" href=\"nav.xhtml\"/>\n"
+        guideXML += "<reference type=\"title-page\" title=\"\(XHTML.escape(bookInfo.title))\" href=\"text/titlepage.xhtml\"/>\n"
+        if let firstAct = firstAct {
+            guideXML += "<reference type=\"text\" title=\"\(XHTML.escape(firstAct.act.name))\" href=\"\(firstAct.actHref)\"/>\n"
+        }
 
         return """
         <?xml version="1.0" encoding="UTF-8"?>
@@ -364,10 +361,7 @@ enum EpubBuilder {
         \(spineXML)
         </spine>
         <guide>
-        \(cover != nil ? "<reference type=\"cover\" title=\"Cover\" href=\"text/cover.xhtml\"/>\n" : "")\
-        <reference type="toc" title="\(XHTML.escape(t.tocHeading))" href="nav.xhtml"/>
-        <reference type="title-page" title="\(XHTML.escape(t.titlePageLabel))" href="text/titlepage.xhtml"/>
-        <reference type="text" title="\(XHTML.escape(t.startReading))" href="\(firstContentHref)"/>
+        \(guideXML)
         </guide>
         </package>
         """
@@ -392,9 +386,11 @@ enum EpubBuilder {
       margin: 3em 0 0.3em;
     }
 
-    .chapter-subtitle {
+    h2.chapter-subtitle {
       text-align: center;
+      font-size: 1.1em;
       font-style: italic;
+      font-weight: normal;
       margin: 0 0 2em;
     }
 

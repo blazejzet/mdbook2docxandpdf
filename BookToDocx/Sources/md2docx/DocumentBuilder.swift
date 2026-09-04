@@ -27,7 +27,8 @@ struct BuiltBook {
 
 enum DocumentBuilder {
 
-    static func build(bookInfo: BookInfo, acts: [Act], chapters: [Int: ChapterFile]) throws -> BuiltBook {
+    static func build(bookInfo: BookInfo, contents: BookContents, chapters: [Int: ChapterFile]) throws -> BuiltBook {
+        let acts = contents.acts
         var sections: [DocSection] = []
         var bookmarkID = 1
         func nextBookmarkID() -> Int {
@@ -50,19 +51,17 @@ enum DocumentBuilder {
         }
 
         // MARK: Copyright page
+        // Whatever bookinfo.md says it is — one paragraph per source line,
+        // blank lines kept as spacers. No wording is generated here, so the
+        // page is in the book's own language.
         do {
             var paras: [String] = []
-            paras.append(OOXML.paragraph(style: StyleID.copyrightPage, runsXML: OOXML.run(bookInfo.title)))
-            paras.append(OOXML.paragraph(style: StyleID.copyrightPage, runsXML: OOXML.run(bookInfo.author)))
-            paras.append(OOXML.emptyParagraph(style: StyleID.copyrightPage))
-            paras.append(OOXML.paragraph(style: StyleID.copyrightPage, runsXML: OOXML.run("Copyright © \(bookInfo.copyrightYear) \(bookInfo.author)")))
-            paras.append(OOXML.paragraph(style: StyleID.copyrightPage, runsXML: OOXML.run("All rights reserved.")))
-            paras.append(OOXML.emptyParagraph(style: StyleID.copyrightPage))
-            if let isbn = bookInfo.isbn {
-                paras.append(OOXML.paragraph(style: StyleID.copyrightPage, runsXML: OOXML.run("ISBN: \(isbn)")))
-            }
-            if let printingDate = bookInfo.printingDate {
-                paras.append(OOXML.paragraph(style: StyleID.copyrightPage, runsXML: OOXML.run("First printing: \(printingDate)")))
+            for line in bookInfo.copyrightPageLines(isbn: bookInfo.isbn) {
+                if line.isEmpty {
+                    paras.append(OOXML.emptyParagraph(style: StyleID.copyrightPage))
+                } else {
+                    paras.append(OOXML.paragraph(style: StyleID.copyrightPage, runsXML: OOXML.runs(InlineMarkdown.parse(line))))
+                }
             }
             sections.append(DocSection(
                 paragraphs: paras,
@@ -73,7 +72,7 @@ enum DocumentBuilder {
         // MARK: Table of contents
         do {
             var paras: [String] = []
-            paras.append(OOXML.paragraph(style: StyleID.chapterTitle, jc: "center", runsXML: OOXML.run("Spis treści")))
+            paras.append(OOXML.paragraph(style: StyleID.chapterTitle, jc: "center", runsXML: OOXML.run(contents.heading)))
             paras.append(OOXML.emptyParagraph(style: StyleID.frontMatterBody))
 
             for (actIndex, act) in acts.enumerated() {
@@ -150,40 +149,52 @@ enum DocumentBuilder {
         return BuiltBook(bodyXML: body)
     }
 
-    /// Builds one chapter's section: the drop-spaced heading, then its body
-    /// blocks. The section's closing sectPr is always returned embeddable;
-    /// the top-level assembly loop is what decides whether it ends up
-    /// folded into the last paragraph or appended at body level (only the
-    /// very last section of the whole document gets the latter).
+    /// Builds one chapter's section: the drop-spaced opening heading, then
+    /// its body blocks — all of them read from the chapter's markdown file,
+    /// headings included. Nothing is titled from the file name or from the
+    /// contents file here. The section's closing sectPr is always returned
+    /// embeddable; the top-level assembly loop is what decides whether it
+    /// ends up folded into the last paragraph or appended at body level
+    /// (only the very last section of the whole document gets the latter).
     private static func chapterSection(entry: TOCEntry, chapter: ChapterFile) -> DocSection {
         var paras: [String] = []
         let headingBookmarkID = chapterHeadingBookmarkID(for: entry.nr)
-
-        for _ in 0..<5 {
-            paras.append(OOXML.emptyParagraph(style: StyleID.chapterTitle))
-        }
-        paras.append(OOXML.paragraph(
-            style: StyleID.chapterTitle,
-            runsXML: OOXML.bookmarkStart(id: headingBookmarkID, name: "ch\(entry.nr)")
-                + OOXML.run(entry.headingMain)
-                + OOXML.bookmarkEnd(id: headingBookmarkID)
-        ))
-        if let sub = entry.headingSub {
-            paras.append(OOXML.paragraph(style: StyleID.subhead, jc: "center", runsXML: OOXML.run(sub)))
-        } else {
-            paras.append(OOXML.emptyParagraph(style: StyleID.chapterTitle))
-        }
-
+        var openingHeadingDone = false
         var nextIsFirst = true
-        for block in chapter.blocks {
+
+        for (index, block) in chapter.blocks.enumerated() {
             switch block {
+            case .title(let runs):
+                if openingHeadingDone {
+                    paras.append(OOXML.paragraph(style: StyleID.chapterTitle, runsXML: OOXML.runs(runs)))
+                } else {
+                    // The chapter opens a page: drop the heading down, and
+                    // anchor the TOC's PAGEREF bookmark on it.
+                    for _ in 0..<5 {
+                        paras.append(OOXML.emptyParagraph(style: StyleID.chapterTitle))
+                    }
+                    paras.append(OOXML.paragraph(
+                        style: StyleID.chapterTitle,
+                        runsXML: OOXML.bookmarkStart(id: headingBookmarkID, name: "ch\(entry.nr)")
+                            + OOXML.runs(runs)
+                            + OOXML.bookmarkEnd(id: headingBookmarkID)
+                    ))
+                    openingHeadingDone = true
+                    // A subhead written directly under it is the chapter's
+                    // subtitle and provides its own spacing; otherwise pad.
+                    let subtitleFollows = index + 1 < chapter.blocks.count && chapter.blocks[index + 1].isSubhead
+                    if !subtitleFollows {
+                        paras.append(OOXML.emptyParagraph(style: StyleID.chapterTitle))
+                    }
+                }
+                nextIsFirst = true
+            case .subhead(let runs):
+                paras.append(OOXML.paragraph(style: StyleID.subhead, jc: "center", runsXML: OOXML.runs(runs)))
+                nextIsFirst = true
             case .paragraph(let runs):
                 let style = nextIsFirst ? StyleID.firstParagraph : StyleID.chapterBody
                 paras.append(OOXML.paragraph(style: style, runsXML: OOXML.runs(runs)))
                 nextIsFirst = false
-            case .subhead(let runs):
-                paras.append(OOXML.paragraph(style: StyleID.subhead, jc: "center", runsXML: OOXML.runs(runs)))
-                nextIsFirst = true
             case .sceneBreak:
                 // "3x newline; centered ✦; 3x newline" — two blank lines on
                 // each side of the glyph, matching the empty-paragraph

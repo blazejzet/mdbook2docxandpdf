@@ -7,7 +7,7 @@ func fail(_ message: String) -> Never {
 
 struct CLIOptions {
     var bookDir = URL(fileURLWithPath: "book")
-    var tocFileName = "00 - Spis treści.md"
+    var tocFileName = "00 - Content.md"
     var bookInfoFileName = "00 - Bookinfo.md"
     var lang = "pl"
     var coverPath: URL?
@@ -46,7 +46,7 @@ struct CLIOptions {
 
                 Options:
                   --book <dir>        Directory with chapter .md files (default: book)
-                  --toc <file>        TOC markdown filename inside --book (default: 00 - Spis treści.md)
+                  --toc <file>        Contents markdown filename inside --book (default: 00 - Content.md)
                   --bookinfo <file>   Book metadata markdown filename inside --book (default: 00 - Bookinfo.md)
                   --lang <code>       EPUB language code, e.g. pl, en (default: pl)
                   --cover <file>      Cover image (.jpg/.jpeg/.png/.gif/.svg). Downscaled to fit
@@ -84,7 +84,8 @@ do {
     let bookInfo = try BookInfo.parse(fileURL: bookInfoURL)
 
     print("Reading \(opts.tocFileName)...")
-    let acts = try TableOfContents.parse(fileURL: tocURL)
+    let contents = try TableOfContents.parse(fileURL: tocURL)
+    let acts = contents.acts
     let chapterCount = acts.reduce(0) { $0 + $1.entries.count }
     print("Found \(acts.count) acts, \(chapterCount) chapters.")
 
@@ -119,7 +120,7 @@ do {
     }
 
     print("Building EPUB parts...")
-    let files = try EpubBuilder.build(bookInfo: bookInfo, acts: acts, chapters: chapters, lang: opts.lang, cover: cover)
+    let files = try EpubBuilder.build(bookInfo: bookInfo, contents: contents, chapters: chapters, lang: opts.lang, cover: cover)
 
     let workDir = fm.temporaryDirectory.appendingPathComponent("md2epub-\(UUID().uuidString)")
     try fm.createDirectory(at: workDir, withIntermediateDirectories: true)

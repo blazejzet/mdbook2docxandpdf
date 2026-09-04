@@ -32,7 +32,7 @@ func resolveTemplate(_ path: URL) -> URL? {
 struct CLIOptions {
     var bookDir = URL(fileURLWithPath: "book")
     var templatePath = URL(fileURLWithPath: "5.5 x 8.5 in.docx")
-    var tocFileName = "00 - Spis treści.md"
+    var tocFileName = "00 - Content.md"
     var bookInfoFileName = "00 - Bookinfo.md"
     var output: URL?
 
@@ -66,7 +66,7 @@ struct CLIOptions {
                                       Resolved as given (relative to the current directory, or
                                       absolute); if not found there, falls back to a file of the
                                       same name under \(appTemplatesDir.path).
-                  --toc <file>        TOC markdown filename inside --book (default: 00 - Spis treści.md)
+                  --toc <file>        Contents markdown filename inside --book (default: 00 - Content.md)
                   --bookinfo <file>   Book metadata markdown filename inside --book (default: 00 - Bookinfo.md)
                   --output, -o <file> Output .docx path (default: "<Title>.docx" from bookinfo.md)
                 """)
@@ -100,7 +100,8 @@ do {
     let bookInfo = try BookInfo.parse(fileURL: bookInfoURL)
 
     print("Reading \(opts.tocFileName)...")
-    let acts = try TableOfContents.parse(fileURL: tocURL)
+    let contents = try TableOfContents.parse(fileURL: tocURL)
+    let acts = contents.acts
     let chapterCount = acts.reduce(0) { $0 + $1.entries.count }
     print("Found \(acts.count) acts, \(chapterCount) chapters.")
 
@@ -128,7 +129,7 @@ do {
     }
 
     print("Building document.xml...")
-    let built = try DocumentBuilder.build(bookInfo: bookInfo, acts: acts, chapters: chapters)
+    let built = try DocumentBuilder.build(bookInfo: bookInfo, contents: contents, chapters: chapters)
 
     let workDir = fm.temporaryDirectory.appendingPathComponent("md2docx-\(UUID().uuidString)")
     try fm.createDirectory(at: workDir, withIntermediateDirectories: true)

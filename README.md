@@ -49,15 +49,25 @@ swift run --package-path BookToEpub md2epub --book book_template_md -o "Przykła
 
 ## Format źródła
 
+Cały tekst, który widzi czytelnik, pochodzi z plików `.md` — w kodzie
+narzędzi nie ma zaszytych napisów w żadnym języku, a z nazw plików nie
+powstaje żaden nagłówek (służą tylko do ustalenia kolejności rozdziałów).
+Ta sama para narzędzi buduje więc książkę w dowolnym języku.
+
 Oba narzędzia czytają ten sam układ katalogu `--book`:
 - `00 - Bookinfo.md` — metadane (`TITLE`, `AUTHOR`, opcjonalnie `SUBTITLE`,
-  `ISBN`, `PRINTING DATE`).
-- `00 - Spis treści.md` — `### Akt` + tabela `| Nr | Tytuł | Kod |`;
-  tytuł z em dashem (`Tytuł — Podtytuł`) daje dwuczęściowy nagłówek.
+  `ISBN`, `PRINTING DATE`), a po linii `---` gotowa treść strony
+  redakcyjnej, drukowana dosłownie.
+- `00 - Content.md` — spis treści; nazwa pliku jest stała. `## Nagłówek`
+  (wymagany, raz) to tytuł strony spisu w języku książki, `### Akt` otwiera
+  dział, tabela `| Nr | Tytuł | Kod |` wylicza rozdziały. Kolumna „Tytuł”
+  jest etykietą *w spisie treści*, nie nagłówkiem rozdziału.
 - `NN - Kod - Tytuł.md` — po jednym pliku na rozdział, dopasowywanym do
   spisu treści po wiodącej liczbie w nazwie pliku.
-- W treści rozdziału: akapity oddzielone pustą linią (miękkie zawijanie
-  wierszy w obrębie akapitu jest łączone spacją), `## Śródtytuł`, przerwa
+- W treści rozdziału: `# Tytuł` w pierwszej linii to drukowany nagłówek
+  rozdziału (a `## Podtytuł` zaraz pod nim — jego druga, mniejsza linia),
+  akapity oddzielone pustą linią (miękkie zawijanie wierszy w obrębie
+  akapitu jest łączone spacją), `## Śródtytuł` dalej w tekście, przerwa
   sceniczna jako `***` albo `✦` na osobnej linii, oraz inline
   `**pogrubienie**` / `*kursywa*` / `***oba naraz***` (także `_`/`__`).
 
@@ -83,7 +93,7 @@ md2docx [opcje]
                         a jeśli nie znaleziony — pod tą samą nazwą w
                         ~/.bookapps/templates/docx/
   --toc <plik>         Nazwa pliku spisu treści w --book
-                        (domyślnie: 00 - Spis treści.md)
+                        (domyślnie: 00 - Content.md)
   --bookinfo <plik>    Nazwa pliku metadanych w --book
                         (domyślnie: 00 - Bookinfo.md)
   --output, -o <plik>  Ścieżka wyjściowa .docx
@@ -109,7 +119,7 @@ md2epub [opcje]
 
   --book <katalog>     Katalog z plikami rozdziałów (domyślnie: book)
   --toc <plik>         Nazwa pliku spisu treści w --book
-                        (domyślnie: 00 - Spis treści.md)
+                        (domyślnie: 00 - Content.md)
   --bookinfo <plik>    Nazwa pliku metadanych w --book
                         (domyślnie: 00 - Bookinfo.md)
   --lang <kod>         Kod języka EPUB, np. pl, en (domyślnie: pl)
