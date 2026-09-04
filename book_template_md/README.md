@@ -1,49 +1,48 @@
 # book_template_md
 
-Wzorcowy, w pełni działający katalog źródłowy dla `md2docx` i `md2epub`
-(patrz `../BookToDocx`, `../BookToEpub`). Skopiuj ten katalog, podmień
-zawartość i zbuduj — poniżej opis każdej reguły formatu.
+A model, fully working source directory for `md2docx` and `md2epub` (see
+`../BookToDocx`, `../BookToEpub`). Copy this directory, replace the
+contents and build — every rule of the format is described below.
 
-Zasada nadrzędna obu narzędzi: **wszystko, co czytelnik zobaczy w książce,
-pochodzi z plików `.md`**. Żaden tekst nie jest zaszyty w kodzie ani
-zgadywany z nazwy pliku — nazwy plików służą wyłącznie do ustalenia
-kolejności rozdziałów. Dzięki temu ta sama para narzędzi buduje książkę w
-dowolnym języku.
+The governing principle of both tools: **everything a reader sees in the
+book comes from the `.md` files**. No text is hardcoded in the tools or
+guessed from a file name — file names serve only to establish chapter
+order. The same pair of tools therefore builds a book in any language.
 
-Ten plik (`README.md`) jest ignorowany przez oba narzędzia — nie ma w nazwie
-wzorca `NN - ...`, więc nigdy nie trafia do spisu rozdziałów.
+This file (`README.md`) is ignored by both tools — its name doesn't match
+the `NN - ...` pattern, so it never enters the chapter listing.
 
-## Wypróbuj od razu
+## Try it right away
 
 ```sh
-md2docx --book book_template_md -o /tmp/przyklad.docx
-md2epub --book book_template_md -o /tmp/przyklad.epub
+md2docx --book book_template_md -o /tmp/example.docx
+md2epub --book book_template_md -o /tmp/example.epub
 ```
 
-(Po instalacji przez `../install.sh` `md2docx`/`md2epub` są na `PATH`, a
-domyślny szablon `.docx` sam znajdzie się w `~/.bookapps/templates/docx/` —
-nie trzeba podawać `--template`.)
+(After installing via `../install.sh`, `md2docx`/`md2epub` are on `PATH`
+and the default `.docx` template is found in `~/.bookapps/templates/docx/`
+on its own — there is no need to pass `--template`.)
 
-## 1. `00 - Bookinfo.md` — metadane i strona redakcyjna
+## 1. `00 - Bookinfo.md` — metadata and the copyright page
 
-Górna część pliku to proste linie `KLUCZ: wartość`, w dowolnej kolejności,
-puste linie dozwolone:
+The top of the file is plain `KEY: value` lines, in any order, blank lines
+allowed:
 
-- `TITLE` — **wymagane**.
-- `AUTHOR` — **wymagane**.
-- `SUBTITLE` — opcjonalne.
-- `ISBN` — opcjonalne. Może zawierać tekst po numerze (np.
-  `9780000000000 | Independently published`) — oba narzędzia same wyciągają
-  z tego same cyfry (i ewentualne końcowe „X”) tam, gdzie to potrzebne.
-- `PRINTING DATE` (albo `PRINTING_DATE`) — opcjonalne; sam 4-cyfrowy rok w
-  tym polu trafia do metadanych jako rok praw autorskich. Bez tego pola
-  użyty zostanie bieżący rok.
+- `TITLE` — **required**.
+- `AUTHOR` — **required**.
+- `SUBTITLE` — optional.
+- `ISBN` — optional. It may carry text after the number (e.g.
+  `9780000000000 | Independently published`) — both tools extract just the
+  digits (and a possible trailing "X") wherever that is what's needed.
+- `PRINTING DATE` (or `PRINTING_DATE`) — optional; a 4-digit year found in
+  this field becomes the copyright year in the metadata. Without the field,
+  the current year is used.
 
-Poniżej linii `---` piszesz **treść strony redakcyjnej — dokładnie tak, jak
-ma się wydrukować**: jedna linia to jeden wyśrodkowany akapit, pusta linia
-to odstęp, działa `**pogrubienie**` / `*kursywa*`. Nic tu nie jest
-dopisywane przez narzędzie, więc formuły w rodzaju „Wszelkie prawa
-zastrzeżone.” czy „Wydanie pierwsze:” są w Twoim języku i Twoim brzmieniu:
+Below a `---` line you write **the copyright page's text exactly as it
+should be printed**: one line is one centred paragraph, a blank line is a
+spacer, and `**bold**` / `*italic*` work. Nothing is added by the tool
+here, so formulas like "All rights reserved." or "First printing:" are in
+your language and your wording:
 
 ```
 PRINTING DATE: 01.2027
@@ -61,75 +60,76 @@ ISBN 9780000000000
 First printing: 01.2027
 ```
 
-Blok po `---` jest opcjonalny. Jeśli go pominiesz, strona redakcyjna
-zawiera tylko dane językowo neutralne: tytuł, autora, `© rok autor` oraz
-`ISBN <numer>`.
+The block after `---` is optional. If you leave it out, the copyright page
+carries only language-neutral data: title, author, `© year author` and
+`ISBN <number>`.
 
-## 2. `00 - Content.md` — spis treści
+## 2. `00 - Content.md` — the table of contents
 
-Nazwa tego pliku jest stała: **zawsze `00 - Content.md`** (można ją zmienić
-przez `--toc`, ale nie ma po temu powodu).
+This file's name is fixed: **always `00 - Content.md`** (it can be changed
+with `--toc`, but there is no reason to).
 
-- `## Nagłówek` — **wymagane, dokładnie raz**. To tytuł strony spisu treści
-  w języku książki („Spis treści”, „Table of Contents”, …). Trafia na
-  stronę spisu w `.docx` i na `nav.xhtml` w `.epub`. Nie jest brany ani z
-  nazwy pliku, ani z kodu narzędzia.
-- `### Nazwa aktu` otwiera nowy „akt” (dział książki). Musi wystąpić co
-  najmniej raz przed pierwszym wierszem tabeli.
-- Wiersze tabeli markdown `| Nr | Tytuł | Kod |` rejestrują rozdziały w
-  aktualnie otwartym akcie. Kolumna „Nr” wiąże wiersz z plikiem rozdziału,
-  kolumna „Kod” jest czysto opisowa — nie jest nigdzie interpretowana,
-  możesz w niej trzymać własny system oznaczeń.
-- **Kolumna „Tytuł” jest etykietą rozdziału w spisie treści i tylko tam.**
-  Nagłówek drukowany na stronie rozdziału bierze się z samego pliku
-  rozdziału (patrz niżej), więc w spisie możesz mieć dłuższy opis niż w
-  treści — jak tutaj „ACCOUNT I — A Voice from Memory” dla rozdziału,
-  którego strona zaczyna się od „ACCOUNT I”.
-- Wiodąca linia `# ` (tytuł książki) jest ignorowana — źródłem prawdy dla
-  metadanych jest `00 - Bookinfo.md`.
+- `## Heading` — **required, exactly once**. This is the title of the
+  contents page in the book's language ("Spis treści", "Table of
+  Contents", …). It goes on the contents page in the `.docx` and into
+  `nav.xhtml` in the `.epub`. It is taken neither from the file name nor
+  from the tool's code.
+- `### Act name` opens a new "act" (a division of the book). It must appear
+  at least once before the first table row.
+- Markdown table rows `| Nr | Title | Code |` register chapters in the
+  currently open act. The "Nr" column ties the row to a chapter file; the
+  "Code" column is purely descriptive — it is never interpreted, so you can
+  keep your own labelling system in it.
+- **The "Title" column is the chapter's label in the table of contents, and
+  only there.** The heading printed on the chapter's page comes from the
+  chapter file itself (see below), so the contents may carry a longer
+  description than the text does — as here, where "ACCOUNT I — A Voice from
+  Memory" labels a chapter whose page opens with "ACCOUNT I".
+- A leading `# ` line (the book title) is ignored — `00 - Bookinfo.md` is
+  the single source of truth for metadata.
 
-## 3. Pliki rozdziałów — `NN - Kod - Tytuł.md`
+## 3. Chapter files — `NN - Code - Title.md`
 
-Nazwa pliku musi zaczynać się od liczby i `" - "` (spacja-myślnik-spacja);
-ta liczba musi zgadzać się z kolumną „Nr” w spisie treści — reszta nazwy
-pliku jest dowolna i tylko dla wygody czytania w Finderze. **Z nazwy pliku
-nigdy nie powstaje żaden nagłówek w treści.**
+The file name must start with a number and `" - "` (space-hyphen-space);
+that number must match the "Nr" column in the table of contents — the rest
+of the name is free and only there to read comfortably in the Finder. **No
+heading in the content is ever produced from a file name.**
 
-Zasady treści pliku:
+Rules for the file's content:
 
-- **Pierwsza niepusta linia musi być `# Tytuł`** — i to ona jest nagłówkiem
-  rozdziału w gotowej książce.
-- `## Podtytuł` **bezpośrednio pod** nagłówkiem rozdziału daje
-  dwuczęściowy nagłówek: górna linia to `#`, dolna (mniejsza, kursywą,
-  wyśrodkowana) to `##`. Tak zrobiony jest rozdział
-  `03 - R1 - A Voice from Memory.md`.
-- `## Śródtytuł` w dalszej części rozdziału tworzy zwykły wyśrodkowany
-  podnagłówek.
-- Akapity oddziela pusta linia. **W obrębie jednego akapitu możesz łamać
-  wiersze dowolnie** (miękkie zawijanie) — sąsiednie linie bez pustej linii
-  między nimi zostaną złączone jedną spacją w jeden akapit (patrz
-  `02 - U2 - The Silence of the House.md`, pierwszy akapit).
-- Linia zawierająca dokładnie `***` **albo** `✦` (i nic więcej) to przerwa
-  sceniczna — w wyniku wyśrodkowany `✦` z dodatkowym odstępem nad i pod.
-  Oba zapisy są równoważne, użyj tego, który wygodniej się pisze.
-- **Pogrubienie i kursywa** działają wewnątrz akapitów i nagłówków:
-  `**pogrubienie**`, `*kursywa*`, `***pogrubienie i kursywa razem***`
-  (`_podkreślnik_` / `__podwójny__` też działają, ale konsekwentnie trzymaj
-  się jednego zapisu w całej książce).
+- **The first non-blank line must be `# Title`** — and that is the
+  chapter's heading in the finished book.
+- `## Subtitle` **directly beneath** the chapter heading produces a
+  two-part heading: the top line is the `#`, the bottom one (smaller,
+  italic, centred) is the `##`. Chapter
+  `03 - R1 - A Voice from Memory.md` is built that way.
+- `## Subheading` further into the chapter creates an ordinary centred
+  subheading.
+- Paragraphs are separated by a blank line. **Within one paragraph you may
+  break lines freely** (soft wrapping) — adjacent lines with no blank line
+  between them are joined with a single space into one paragraph (see
+  `02 - U2 - The Silence of the House.md`, first paragraph).
+- A line containing exactly `***` **or** `✦` (and nothing else) is a scene
+  break — rendered as a centred `✦` with extra space above and below. The
+  two spellings are equivalent; use whichever is easier to type.
+- **Bold and italic** work inside paragraphs and headings: `**bold**`,
+  `*italic*`, `***bold and italic together***` (`_underscore_` /
+  `__double__` work too, but stick to one spelling throughout the book).
 
-## 4. Okładka (tylko `md2epub`)
+## 4. Cover (`md2epub` only)
 
-Plik `cover.jpg` w katalogu książki jest wykrywany automatycznie (albo
-wskaż inny przez `--cover ścieżka.jpg`; obsługiwane są też `.png`, `.gif`,
-`.svg`). Brak pliku nie jest błędem — epub po prostu powstanie bez okładki.
-Źródłowy obraz może być w rozdzielczości do druku — `md2epub` sam go
-zmniejszy do rozsądnego rozmiaru ekranowego (`--cover-max-dimension`,
-domyślnie 2400px na dłuższym boku), nigdy nie powiększa.
+A `cover.jpg` file in the book directory is detected automatically (or
+point at another one with `--cover path.jpg`; `.png`, `.gif` and `.svg` are
+supported too). A missing file is not an error — the epub is simply built
+without a cover. The source image may be at print resolution — `md2epub`
+downscales it to a sensible screen size on its own
+(`--cover-max-dimension`, 2400px on the longer edge by default) and never
+upscales.
 
-## 5. Szablon `.docx` (tylko `md2docx`)
+## 5. The `.docx` template (`md2docx` only)
 
-`--template` szuka pliku najpierw tak, jak podano (ścieżka względna do
-bieżącego katalogu albo bezwzględna), a jeśli go tam nie ma — pod tą samą
-nazwą w `~/.bookapps/templates/docx/`. Gotowe formaty stron (5×8", 6×9" itd.)
-są w `../BookToDocx/templates/` — `../install.sh` kopiuje je wszystkie do
-`~/.bookapps/templates/docx/`.
+`--template` looks for the file first as given (a path relative to the
+current directory, or absolute), and if it isn't there — under the same
+name in `~/.bookapps/templates/docx/`. Ready-made trim sizes (5×8", 6×9"
+etc.) live in `../BookToDocx/templates/` — `../install.sh` copies them all
+into `~/.bookapps/templates/docx/`.
