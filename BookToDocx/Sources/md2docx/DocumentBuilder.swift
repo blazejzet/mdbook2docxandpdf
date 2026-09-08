@@ -27,7 +27,7 @@ struct BuiltBook {
 
 enum DocumentBuilder {
 
-    static func build(bookInfo: BookInfo, contents: BookContents, chapters: [Int: ChapterFile]) throws -> BuiltBook {
+    static func build(bookInfo: BookInfo, contents: BookContents, heading: String?, chapters: [Int: ChapterFile]) throws -> BuiltBook {
         let acts = contents.acts
         var sections: [DocSection] = []
         var bookmarkID = 1
@@ -72,8 +72,10 @@ enum DocumentBuilder {
         // MARK: Table of contents
         do {
             var paras: [String] = []
-            paras.append(OOXML.paragraph(style: StyleID.chapterTitle, jc: "center", runsXML: OOXML.run(contents.heading)))
-            paras.append(OOXML.emptyParagraph(style: StyleID.frontMatterBody))
+            if let heading = heading {
+                paras.append(OOXML.paragraph(style: StyleID.chapterTitle, jc: "center", runsXML: OOXML.run(heading)))
+                paras.append(OOXML.emptyParagraph(style: StyleID.frontMatterBody))
+            }
 
             for (actIndex, act) in acts.enumerated() {
                 let actBookmark = "act\(actIndex + 1)"

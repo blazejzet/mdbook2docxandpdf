@@ -13,6 +13,11 @@ struct BookInfo {
     /// own metadata rather than in a command-line flag that is easy to drop
     /// on a rebuild: a book's language is a property of the book.
     var language: String?
+    /// `CONTENTS:` — what this book calls its table of contents ("Spis
+    /// treści", "Table of Contents"). The numbered-table schema can also
+    /// carry it as the `## ` line of the contents file; the linked-list
+    /// schema has no room for it there, so it belongs here.
+    var contentsHeading: String?
     /// The copyright / imprint page, written out by the author below a `---`
     /// line in the metadata file: one entry per source line, an empty entry
     /// being a blank spacer line. It is reproduced verbatim (inline
@@ -59,6 +64,7 @@ struct BookInfo {
             isbn: fields["ISBN"],
             printingDate: fields["PRINTING DATE"] ?? fields["PRINTING_DATE"],
             language: fields["LANGUAGE"],
+            contentsHeading: fields["CONTENTS"],
             copyrightPage: pageLines
         )
     }

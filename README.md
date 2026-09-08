@@ -18,7 +18,8 @@ executable with no dependency between the packages.
 | `BookToDocx/` | SPM package for the `md2docx` tool |
 | `BookToEpub/` | SPM package for the `md2epub` tool |
 | `BookToDocx/templates/` | 22 ready-made `.docx` templates (trim sizes) |
-| `book_template_md/` | A model, working source directory — see its `README.md` for the full format description |
+| `book_template_md/` | A model source directory, numbered-table schema — see its `README.md` for the full format description |
+| `book_template_md_linked/` | A model source directory, linked-list schema (same sample book) |
 | `install.sh` | Builds both tools and installs them into `~/.bookapps` |
 
 ## Quick start
@@ -52,17 +53,25 @@ language is hardcoded in the tools, and no heading is ever derived from a
 file name (file names only establish chapter order). The same pair of tools
 therefore builds a book in any language.
 
-Both tools read the same `--book` directory layout:
-- `00 - Bookinfo.md` — metadata (`TITLE`, `AUTHOR`, `LANGUAGE`, optionally
-  `SUBTITLE`, `ISBN`, `PRINTING DATE`), and below a `---` line the finished
-  text of the copyright page, printed verbatim.
-- `00 - Content.md` — the table of contents; the file name is fixed.
-  `## Heading` (required, once) is the title of the contents page in the
-  book's own language, `### Act` opens a division, and the
-  `| Nr | Title | Code |` table lists the chapters. The "Title" column is a
-  label *in the table of contents*, not the chapter's heading.
-- `NN - Code - Title.md` — one file per chapter, matched to the table of
-  contents by the leading number in the file name.
+Both tools read a `--book` directory in one of **two** layouts, and choose
+between them by which starting files the directory holds — never by looking
+inside them:
+
+| Schema | Metadata | Contents | Chapters listed as |
+|---|---|---|---|
+| numbered table | `00 - Bookinfo.md` | `00 - Content.md` | a `\| Nr \| Title \| Code \|` table, matched to `NN - ....md` file names |
+| linked list | `00_BOOKINFO.md` | `00_SPIS_TRESCI.md` or `00_CONTENTS.md` | `- [Title](file.md)` list items linking straight to the file |
+
+- The metadata file carries `TITLE`, `AUTHOR`, `LANGUAGE`, `CONTENTS`, and
+  optionally `SUBTITLE`, `ISBN`, `PRINTING DATE`; below a `---` line comes
+  the finished text of the copyright page, printed verbatim.
+- The contents file groups chapters under divisions (`### Act` in the first
+  schema, `## Part` in the second) and gives each one its label *in the
+  table of contents* — not the chapter's own heading.
+- In the linked-list schema a `##` section with no chapter list items is
+  skipped (manuscript notes stay out of the book), text after a link is
+  ignored (word counts), and a chapter file the contents file doesn't list
+  is simply not in the book.
 - Inside a chapter: `# Title` on the first line is the chapter heading as
   printed (and `## Subtitle` directly beneath it becomes its second,
   smaller line); paragraphs separated by a blank line (soft-wrapped lines
@@ -71,8 +80,10 @@ Both tools read the same `--book` directory layout:
   inline `**bold**` / `*italic*` / `***both at once***` (`_`/`__` too).
 
 The full annotated description of every rule — with examples — is in
-[`book_template_md/README.md`](book_template_md/README.md); that directory
-is also a ready, working example to build as a dry run.
+[`book_template_md/README.md`](book_template_md/README.md). Both template
+directories are ready, working examples to build as a dry run:
+[`book_template_md/`](book_template_md/) for the numbered-table schema,
+[`book_template_md_linked/`](book_template_md_linked/) for the linked-list one.
 
 ## `md2docx`
 

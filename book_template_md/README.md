@@ -34,6 +34,11 @@ allowed:
 - `ISBN` — optional. It may carry text after the number (e.g.
   `9780000000000 | Independently published`) — both tools extract just the
   digits (and a possible trailing "X") wherever that is what's needed.
+- `CONTENTS` — what this book calls its table of contents ("Spis treści",
+  "Table of Contents"). Required by the linked-list schema below, which has
+  nowhere else to put it; optional in this one, where it overrides the
+  contents file's own `## ` line. Without either, the contents page is built
+  with no heading and the build says so.
 - `LANGUAGE` — optional but strongly recommended: a BCP 47 code (`en`,
   `pl`, `de`). It becomes the epub's `dc:language` and the `lang` attribute
   on every page. Without it the build warns and falls back to `pl`, which
@@ -69,36 +74,70 @@ The block after `---` is optional. If you leave it out, the copyright page
 carries only language-neutral data: title, author, `© year author` and
 `ISBN <number>`.
 
-## 2. `00 - Content.md` — the table of contents
+## 2. The contents file — two schemas
 
-This file's name is fixed: **always `00 - Content.md`** (it can be changed
-with `--toc`, but there is no reason to).
+Both tools read one of **two** layouts, and pick between them by **which
+starting files the directory holds**, never by looking inside them:
 
-- `## Heading` — **required, exactly once**. This is the title of the
-  contents page in the book's language ("Spis treści", "Table of
-  Contents", …). It goes on the contents page in the `.docx` and into
-  `nav.xhtml` in the `.epub`. It is taken neither from the file name nor
-  from the tool's code.
+| Schema | Metadata file | Contents file | Chapters listed as |
+|---|---|---|---|
+| numbered table | `00 - Bookinfo.md` | `00 - Content.md` | a `\| Nr \| Title \| Code \|` table |
+| linked list | `00_BOOKINFO.md` | `00_SPIS_TRESCI.md` or `00_CONTENTS.md` | `- [Title](file.md)` list items |
+
+`--toc` and `--bookinfo` override the file *names* once a layout is
+recognised; they do not change how the file is read. This directory is the
+worked example of the first schema, `../book_template_md_linked/` of the second.
+
+### 2a. Numbered table — `00 - Content.md`
+
+- `## Heading` — the title of the contents page in the book's language.
+  Optional here (`CONTENTS:` in bookinfo wins if both are present); at most
+  one such line. It is taken neither from the file name nor from the code.
 - `### Act name` opens a new "act" (a division of the book). It must appear
   at least once before the first table row.
 - Markdown table rows `| Nr | Title | Code |` register chapters in the
-  currently open act. The "Nr" column ties the row to a chapter file; the
-  "Code" column is purely descriptive — it is never interpreted, so you can
-  keep your own labelling system in it.
-- **The "Title" column is the chapter's label in the table of contents, and
-  only there.** The heading printed on the chapter's page comes from the
-  chapter file itself (see below), so the contents may carry a longer
-  description than the text does — as here, where "ACCOUNT I — A Voice from
-  Memory" labels a chapter whose page opens with "ACCOUNT I".
-- A leading `# ` line (the book title) is ignored — `00 - Bookinfo.md` is
-  the single source of truth for metadata.
+  currently open act. The "Nr" column is matched against the leading number
+  of a chapter file's name (`03 - R1 - ....md`); the "Code" column is purely
+  descriptive — it is never interpreted, so you can keep your own labelling
+  system in it.
+- A leading `# ` line (the book title) is ignored — the metadata file is the
+  single source of truth for that.
 
-## 3. Chapter files — `NN - Code - Title.md`
+### 2b. Linked list — `00_SPIS_TRESCI.md`
 
-The file name must start with a number and `" - "` (space-hyphen-space);
-that number must match the "Nr" column in the table of contents — the rest
-of the name is free and only there to read comfortably in the Finder. **No
-heading in the content is ever produced from a file name.**
+- `## Part name` opens a division of the book.
+- `- [Chapter 1. Title](R01_title.md) — 4029 words.` registers a chapter in
+  the currently open part. The link target locates the file directly, so
+  file names need no leading numbers and the order is the order you write.
+  **Anything after the closing parenthesis is ignored** — word counts and
+  drafting notes stay out of the book.
+- **Only list items count as chapters.** A bare link in a paragraph — to
+  editorial notes, a companion document — is not a chapter.
+- **A `## ` section holding no chapter list items is not part of the book**
+  and is skipped with a note on the console. That is what keeps a
+  "manuscript status" section out of the finished text.
+- A chapter file present in the directory but absent from the contents file
+  is simply not in the book: the contents file decides what the book is.
+- The `# ` line and any trailing prose are ignored; `CONTENTS:` in the
+  metadata file supplies the contents page's heading.
+
+### What both schemas share
+
+**The chapter's label in the contents file is its label in the table of
+contents, and only there.** The heading printed on the chapter's page comes
+from the chapter file itself (see below), so the contents may carry a longer
+description than the text does.
+
+## 3. Chapter files
+
+How a chapter file is *found* depends on the schema: the numbered-table
+schema matches the "Nr" column against a name starting with a number and
+`" - "` (space-hyphen-space), e.g. `03 - R1 - A Voice from Memory.md`; the
+linked-list schema follows the link, so the name is entirely yours. Either
+way the rest of the name is only there to read comfortably in the Finder,
+and **no heading in the content is ever produced from a file name.**
+
+The content rules below are identical in both schemas.
 
 Rules for the file's content:
 

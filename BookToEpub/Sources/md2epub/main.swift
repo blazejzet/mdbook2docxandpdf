@@ -7,8 +7,8 @@ func fail(_ message: String) -> Never {
 
 struct CLIOptions {
     var bookDir = URL(fileURLWithPath: "book")
-    var tocFileName = "00 - Content.md"
-    var bookInfoFileName = "00 - Bookinfo.md"
+    var tocFileName: String?
+    var bookInfoFileName: String?
     var lang: String?
     var coverPath: URL?
     var coverMaxDimension = CoverProcessor.defaultMaxDimension
@@ -46,8 +46,10 @@ struct CLIOptions {
 
                 Options:
                   --book <dir>        Directory with chapter .md files (default: book)
-                  --toc <file>        Contents markdown filename inside --book (default: 00 - Content.md)
-                  --bookinfo <file>   Book metadata markdown filename inside --book (default: 00 - Bookinfo.md)
+                  --toc <file>        Override the contents file name (default: whichever of
+                                      "00 - Content.md" / "00_SPIS_TRESCI.md" the book has)
+                  --bookinfo <file>   Override the metadata file name (default: whichever of
+                                      "00 - Bookinfo.md" / "00_BOOKINFO.md" the book has)
                   --lang <code>       EPUB language code, e.g. pl, en. Overrides the
                                       LANGUAGE: field in bookinfo.md; without either,
                                       defaults to pl and warns.
@@ -79,11 +81,15 @@ do {
         fail("book directory not found: \(opts.bookDir.path)")
     }
 
-    let bookInfoURL = opts.bookDir.appendingPathComponent(opts.bookInfoFileName)
-    let tocURL = opts.bookDir.appendingPathComponent(opts.tocFileName)
+    let source = try BookSource.detect(
+        bookDir: opts.bookDir,
+        bookInfoOverride: opts.bookInfoFileName,
+        contentsOverride: opts.tocFileName
+    )
+    print("Layout: \(source.schema.description) (\(source.bookInfoURL.lastPathComponent) + \(source.contentsURL.lastPathComponent))")
 
-    print("Reading \(opts.bookInfoFileName)...")
-    let bookInfo = try BookInfo.parse(fileURL: bookInfoURL)
+    print("Reading \(source.bookInfoURL.lastPathComponent)...")
+    let bookInfo = try BookInfo.parse(fileURL: source.bookInfoURL)
 
     // The book's own LANGUAGE: field is the source of truth; --lang overrides
     // it for one-off builds. A silent default would quietly ship an English
@@ -95,36 +101,31 @@ do {
         lang = declared
     } else {
         lang = "pl"
-        print("warning: no LANGUAGE: field in \(opts.bookInfoFileName) and no --lang given; declaring '\(lang)'.")
+        print("warning: no LANGUAGE: field in \(source.bookInfoURL.lastPathComponent) and no --lang given; declaring '\(lang)'.")
     }
     print("Language: \(lang)")
 
-    print("Reading \(opts.tocFileName)...")
-    let contents = try TableOfContents.parse(fileURL: tocURL)
+    print("Reading \(source.contentsURL.lastPathComponent)...")
+    let contents = try TableOfContents.parse(source: source)
     let acts = contents.acts
+    for skipped in contents.skippedSections {
+        print("note: section '\(skipped)' lists no chapters and is left out of the book.")
+    }
+
+    // CONTENTS: in bookinfo wins; the numbered-table schema can also declare
+    // the heading as the contents file's own '## ' line.
+    let contentsHeading = bookInfo.contentsHeading ?? contents.heading
+    if contentsHeading == nil {
+        print("warning: no CONTENTS: field in \(source.bookInfoURL.lastPathComponent); the contents page gets no heading.")
+    }
     let chapterCount = acts.reduce(0) { $0 + $1.entries.count }
     print("Found \(acts.count) acts, \(chapterCount) chapters.")
-
-    // Map each TOC row's chapter number to its markdown file, matched by the
-    // file's leading "NN - " prefix.
-    let allFiles = try fm.contentsOfDirectory(at: opts.bookDir, includingPropertiesForKeys: nil)
-        .filter { $0.pathExtension.lowercased() == "md" }
-    var fileByNumber: [Int: URL] = [:]
-    for file in allFiles {
-        let name = file.deletingPathExtension().lastPathComponent
-        guard let dashRange = name.range(of: " - ") else { continue }
-        guard let nr = Int(name[name.startIndex..<dashRange.lowerBound]) else { continue }
-        fileByNumber[nr] = file
-    }
 
     print("Parsing chapter files...")
     var chapters: [Int: ChapterFile] = [:]
     for act in acts {
         for entry in act.entries {
-            guard let fileURL = fileByNumber[entry.nr] else {
-                fail("no markdown file found for chapter #\(entry.nr) (\(entry.title)) — expected a file named '\(String(format: "%02d", entry.nr)) - ...md' in \(opts.bookDir.path)")
-            }
-            chapters[entry.nr] = try ChapterFile.parse(fileURL: fileURL)
+            chapters[entry.nr] = try ChapterFile.parse(fileURL: entry.fileURL)
         }
     }
 
@@ -136,7 +137,7 @@ do {
     }
 
     print("Building EPUB parts...")
-    let files = try EpubBuilder.build(bookInfo: bookInfo, contents: contents, chapters: chapters, lang: lang, cover: cover)
+    let files = try EpubBuilder.build(bookInfo: bookInfo, contents: contents, heading: contentsHeading, chapters: chapters, lang: lang, cover: cover)
 
     let workDir = fm.temporaryDirectory.appendingPathComponent("md2epub-\(UUID().uuidString)")
     try fm.createDirectory(at: workDir, withIntermediateDirectories: true)

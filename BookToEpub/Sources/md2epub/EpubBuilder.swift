@@ -33,7 +33,7 @@ enum EpubBuilder {
     /// heading from `00 - Content.md`, the copyright page and title from
     /// `00 - Bookinfo.md`. Labels this builder has to emit for structural
     /// navigation reuse those same strings rather than English defaults.
-    static func build(bookInfo: BookInfo, contents: BookContents, chapters: [Int: ChapterFile], lang: String, cover: CoverImage?) throws -> [String: String] {
+    static func build(bookInfo: BookInfo, contents: BookContents, heading: String?, chapters: [Int: ChapterFile], lang: String, cover: CoverImage?) throws -> [String: String] {
         let identifier = Identifier.forBook(bookInfo)
 
         var files: [String: String] = [:]
@@ -97,10 +97,10 @@ enum EpubBuilder {
             actGroups.append(ActGroup(act: act, actID: actID, actHref: actHref, chapters: refs))
         }
 
-        files["OEBPS/nav.xhtml"] = navXHTML(bookInfo: bookInfo, heading: contents.heading, acts: actGroups, lang: lang, cover: cover)
+        files["OEBPS/nav.xhtml"] = navXHTML(bookInfo: bookInfo, heading: heading, acts: actGroups, lang: lang, cover: cover)
 
         manifest.append(ManifestItem(id: "ncx", href: "toc.ncx", mediaType: "application/x-dtbncx+xml"))
-        files["OEBPS/toc.ncx"] = tocNCX(bookInfo: bookInfo, heading: contents.heading, acts: actGroups, lang: lang, identifier: identifier)
+        files["OEBPS/toc.ncx"] = tocNCX(bookInfo: bookInfo, heading: heading, acts: actGroups, lang: lang, identifier: identifier)
 
         files["OEBPS/content.opf"] = contentOPF(
             bookInfo: bookInfo,
@@ -108,7 +108,7 @@ enum EpubBuilder {
             identifier: identifier,
             manifest: manifest,
             spineIDs: spineIDs,
-            heading: contents.heading,
+            heading: heading,
             firstAct: actGroups.first,
             cover: cover
         )
@@ -217,8 +217,12 @@ enum EpubBuilder {
     /// Landmark labels are the book's own strings (its title, its contents
     /// heading, its first act's name); `epub:type` is what actually tells a
     /// reading system what each one is.
-    private static func navXHTML(bookInfo: BookInfo, heading: String, acts: [ActGroup], lang: String, cover: CoverImage?) -> String {
-        var toc = "<nav epub:type=\"toc\" id=\"toc\">\n<h1>\(XHTML.escape(heading))</h1>\n<ol>\n"
+    private static func navXHTML(bookInfo: BookInfo, heading: String?, acts: [ActGroup], lang: String, cover: CoverImage?) -> String {
+        var toc = "<nav epub:type=\"toc\" id=\"toc\">\n"
+        if let heading = heading {
+            toc += "<h1>\(XHTML.escape(heading))</h1>\n"
+        }
+        toc += "<ol>\n"
         for group in acts {
             toc += "<li><a href=\"\(group.actHref)\">\(XHTML.escape(group.act.name))</a>\n<ol>\n"
             for ref in group.chapters {
@@ -233,16 +237,16 @@ enum EpubBuilder {
             landmarks += "<li><a epub:type=\"cover\" href=\"text/cover.xhtml\">\(XHTML.escape(bookInfo.title))</a></li>\n"
         }
         landmarks += "<li><a epub:type=\"titlepage\" href=\"text/titlepage.xhtml\">\(XHTML.escape(bookInfo.title))</a></li>\n"
-        landmarks += "<li><a epub:type=\"toc\" href=\"nav.xhtml\">\(XHTML.escape(heading))</a></li>\n"
+        landmarks += "<li><a epub:type=\"toc\" href=\"nav.xhtml\">\(XHTML.escape(heading ?? bookInfo.title))</a></li>\n"
         if let firstAct = acts.first {
             landmarks += "<li><a epub:type=\"bodymatter\" href=\"\(firstAct.actHref)\">\(XHTML.escape(firstAct.act.name))</a></li>\n"
         }
         landmarks += "</ol>\n</nav>"
 
-        return page(title: heading, lang: lang, cssHref: "css/stylesheet.css", bodyXML: toc + landmarks)
+        return page(title: heading ?? bookInfo.title, lang: lang, cssHref: "css/stylesheet.css", bodyXML: toc + landmarks)
     }
 
-    private static func tocNCX(bookInfo: BookInfo, heading: String, acts: [ActGroup], lang: String, identifier: String) -> String {
+    private static func tocNCX(bookInfo: BookInfo, heading: String?, acts: [ActGroup], lang: String, identifier: String) -> String {
         var playOrder = 0
         func nextOrder() -> Int { playOrder += 1; return playOrder }
 
@@ -257,7 +261,7 @@ enum EpubBuilder {
 
         var navPoints = ""
         navPoints += navPoint(id: "titlepage", order: nextOrder(), label: bookInfo.title, href: "text/titlepage.xhtml")
-        navPoints += navPoint(id: "navtoc", order: nextOrder(), label: heading, href: "nav.xhtml")
+        navPoints += navPoint(id: "navtoc", order: nextOrder(), label: heading ?? bookInfo.title, href: "nav.xhtml")
 
         for group in acts {
             let actOrder = nextOrder()
@@ -300,7 +304,7 @@ enum EpubBuilder {
         identifier: String,
         manifest: [ManifestItem],
         spineIDs: [String],
-        heading: String,
+        heading: String?,
         firstAct: ActGroup?,
         cover: CoverImage?
     ) -> String {
@@ -351,7 +355,7 @@ enum EpubBuilder {
         if cover != nil {
             guideXML += "<reference type=\"cover\" title=\"\(XHTML.escape(bookInfo.title))\" href=\"text/cover.xhtml\"/>\n"
         }
-        guideXML += "<reference type=\"toc\" title=\"\(XHTML.escape(heading))\" href=\"nav.xhtml\"/>\n"
+        guideXML += "<reference type=\"toc\" title=\"\(XHTML.escape(heading ?? bookInfo.title))\" href=\"nav.xhtml\"/>\n"
         guideXML += "<reference type=\"title-page\" title=\"\(XHTML.escape(bookInfo.title))\" href=\"text/titlepage.xhtml\"/>\n"
         if let firstAct = firstAct {
             guideXML += "<reference type=\"text\" title=\"\(XHTML.escape(firstAct.act.name))\" href=\"\(firstAct.actHref)\"/>\n"

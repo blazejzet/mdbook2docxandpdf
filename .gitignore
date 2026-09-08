@@ -31,3 +31,12 @@ xcuserdata/
 *.swp
 BookToEpub/.build
 BookToDocx/.build
+
+# Local book sources. Manuscripts are not part of this toolchain's repo:
+# book_template_md/ and book_template_md_linked/ are the sample books that
+# document the two schemas; anything else here is the author's own work.
+/book_template_md_2/
+/book/
+/book_en/
+/content/
+/content_en/
